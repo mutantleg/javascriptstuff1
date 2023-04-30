@@ -1,0 +1,217 @@
+
+
+<html>
+<head>
+</head>
+
+<style>
+ #myCanvas { border: 2px solid black; border-radius:8px; cursor:pointer; }
+</style>
+
+<body>
+<img hidden id="myImg" src="splat6.png" />
+<img hidden id="myBg" src="bg.jpg" />
+
+<canvas id="myCanvas" width="640" height="480" >canvas not supported :(</canvas>
+<p id="dinfo"> text </p>
+</body>
+
+<script>
+
+/////////////////////////////////////////////////////// 
+
+  var gt = 0;
+  var obj = { cx:0, cy:0, vx:3, vy:3 };
+  var cam = { cx:0, cy:0, cz:0 };
+  var rendw = 320;
+  var rendh = 240;
+  var tmap = {mw:0, mh:0, cw:32.0, ch:32.0, vecGrid:[]};
+  var mdown = 0;
+  var mousex = 0;
+  var mousey = 0;
+  var canvas = document.getElementById("myCanvas");
+  var wrat = { cx:0, cy:0, cz:0 };
+  var pobj = { cx:0, cy:0, cz:0, vx:0, vy:0, vz:0 };
+  
+/////////////////////////////////////////////////////// 
+  function handleEvent(e)
+  {
+    if (!e)  { var e = event;  } 
+    if (!e)  { return; }
+    
+    //ignore mid and right button 
+    if (e.pointerType == "mouse")
+    {
+      if (e.button == 1 || e.button == 2) { return; }            
+    }//endif
+     
+    if (e.type == "mousemove" ||   e.type == "pointermove" )
+    {  
+      let r = canvas.getBoundingClientRect();
+         mousex = Math.round((e.clientX-r.left)/(r.right-r.left)*canvas.width );
+         mousey = Math.round((e.clientY-r.top)/(r.bottom-r.top)*canvas.height );
+      return; 
+    }//endif   
+
+    if (e.type == "mouseup" ||  e.type == "pointerup" )
+    {    
+      mdown = 0;   
+      return; 
+    }//endif 
+    
+    if (e.type == "mousedown" ||  e.type == "pointerdown")
+    {
+      mdown = 1;
+      return; 
+    }//endif 
+  }//handleevent  
+/////////////////////////////////////////////////////// 
+
+  function initTmap(tm)
+  {
+    tm.mw = 128;
+    tm.mh = 128;
+    tm.cw = 16.0;
+    tm.ch = 16.0;
+    
+    let i, num;
+    num = tm.mw * tm.mh; 
+    tm.vecGrid = [];
+    for (i=0;i<num;i+=1)
+    {
+      tm.vecGrid[i] = 0;
+    }//nexti
+  
+  }//inittmap 
+  
+  function setTmap(tm, tx, tz, h)
+  {
+    tx = tx|0; tz = tz|0;
+    
+    if (tx<0||tx>=tm.mw||tz<0||tz>=tm.mh) {return;}
+    
+    tm.vecGrid[tx + (tz * tm.mw)] = h;
+  }//settmap 
+  
+  function drawTmap(ctx, tm, camx, camz)
+  {
+    let i, k;
+    let yt;
+    let tx, tz;
+    let ax, az;
+    let kx, kz;
+    let h0, h1;
+    
+    tx = (camx / tm.cw)|0;
+    tz = (camz / tm.ch)|0; 
+    tx -= 2;
+    tz -= 2;
+    
+   
+    for (i=0;i<40;i+=1)
+    {
+      kz = i + tz;
+      if (kz < 0) { continue; }
+      if (kz >= tm.mh) { break; }
+      yt = kz * tm.mw;
+      
+      az = kz * tm.ch;
+
+      for (k=0;k<40;k+=1)
+      {
+       kx = k + tx;
+       if (kx < 0) { continue; }
+       if (kx >= tm.mw) { break; }
+       
+       ax  = kx  * tm.cw; 
+       
+       h0 = tm.vecGrid[yt + kx];
+       
+       h1 = tm.vecGrid[yt + kx  + 1];
+       drawLine3(ctx, ax, h0, az,  ax+tm.cw, h1, az);
+
+       h1 = tm.vecGrid[yt + kx  + tm.mw];
+       drawLine3(ctx, ax, h0, az,  ax, h1, az+tm.ch);
+      }//nextk 
+    }//nexti 
+  
+  
+  }//drawtmap 
+  
+  
+  function getMag(ax,ay)
+    { return Math.sqrt(ax*ax+ay*ay); }
+ 
+        
+        
+/////////////////////////////////////////////////////// 
+
+  function resetGame()
+  {
+    initTmap(tmap);
+    cam = { cx:0, cy:0, cz:0 };
+    
+    let i, k; 
+    for (i=0;i<32;i+=1)
+    {
+      for (k=0;k<32;k+=1)
+      {
+        //setTmap(tmap, k, i, Math.random()*32);
+      }
+    }
+  
+  }//resetgame
+        
+  function mainLoop(rtime)
+    { 
+     
+      let ta; let ax, ay, az; let ms;
+      let kx, ky, kz; let u;  let h;
+       
+       if (mdown) { obj.cx = mousex; obj.cy = mousey; }
+       
+      obj.cx += obj.vx;
+      obj.cy += obj.vy;
+      if (obj.vx > 0 && obj.cx+obj.vx >= 640) { obj.cx = 640; obj.vx *= -1; }
+      if (obj.vx < 0 && obj.cx+obj.vx <= 0) { obj.cx = 0; obj.vx *= -1; }
+      if (obj.vy > 0 && obj.cy+obj.vy >= 480) { obj.cy = 480; obj.vy *= -1; }
+      if (obj.vy < 0 && obj.cy+obj.vy <= 0) { obj.cy = 0; obj.vy *= -1; }
+    
+      gt += 1;     
+      document.getElementById("dinfo").innerHTML = "gt "+gt + " mx "+mousex+ " my "+mousey+" mdown " +mdown ;
+      
+        
+      let img = document.getElementById("myImg");
+      let bgimg = document.getElementById("myBg");
+      let canvas = document.getElementById("myCanvas");
+      let ctx = canvas.getContext("2d"); 
+      ctx.globalAlpha = 1.0;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.imageSmoothingQuality = "low";  
+      ctx.drawImage(bgimg, 0, 0); 
+      ctx.drawImage(img, obj.cx-64, obj.cy-64); 
+      //ctx.fillStyle = "#555555";
+      //ctx.fillRect(0,0, 640,480);
+   
+      requestAnimationFrame(mainLoop);
+    }//mainLoop
+/////////////////////////////////////////////////////// 
+    window.onload = function() 
+    { 
+      setTimeout(() => { 
+        document.addEventListener('pointermove', function(e){ handleEvent(e); } );   
+        document.addEventListener('pointerup',   function(e){ handleEvent(e); } );
+        canvas.addEventListener('pointerup',     function(e){ handleEvent(e); } );
+        canvas.addEventListener('pointerdown',   function(e){ handleEvent(e); } ); 
+
+      
+        resetGame();
+        mainLoop(0);
+
+       }, 500); //set timeout 
+    }//onload      
+/////////////////////////////////////////////////////// 
+
+</script>
+
+</html>

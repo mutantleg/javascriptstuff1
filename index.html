@@ -1,0 +1,55 @@
+
+
+<html>
+<head>
+</head>
+
+<style>
+ #myCanvas { border: 2px solid black; border-radius:8px; }
+</style>
+
+<body>
+<img hidden id="myImg" src="splat6.png" />
+<img hidden id="myBg" src="bg.jpg" />
+
+<canvas id="myCanvas" width="640" height="480" >canvas not supported :(</canvas>
+<p id="dinfo"> text </p>
+</body>
+
+<script>
+
+  var gt = 0;
+  var obj = { cx:0, cy:0, vx:3, vy:3 };
+
+  function mainLoop(rtime)
+    { 
+
+      obj.cx += obj.vx;
+      obj.cy += obj.vy;
+      if (obj.vx > 0 && obj.cx+obj.vx >= 640) { obj.cx = 640; obj.vx *= -1; }
+      if (obj.vx < 0 && obj.cx+obj.vx <= 0) { obj.cx = 0; obj.vx *= -1; }
+      if (obj.vy > 0 && obj.cy+obj.vy >= 480) { obj.cy = 480; obj.vy *= -1; }
+      if (obj.vy < 0 && obj.cy+obj.vy <= 0) { obj.cy = 0; obj.vy *= -1; }
+    
+      gt += 1;     
+      document.getElementById("dinfo").innerHTML = "gt "+gt;
+      
+        
+      let img = document.getElementById("myImg");
+      let bgimg = document.getElementById("myBg");
+      let canvas = document.getElementById("myCanvas");
+      let ctx = canvas.getContext("2d"); 
+      ctx.globalAlpha = 1.0;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.imageSmoothingQuality = "low";  
+      ctx.drawImage(bgimg, 0, 0); 
+      ctx.drawImage(img, obj.cx-64, obj.cy-64); 
+      
+      requestAnimationFrame(mainLoop);
+    }//mainLoop
+    
+    mainLoop(0);
+
+</script>
+
+</html>

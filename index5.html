@@ -1,0 +1,385 @@
+
+
+<html>
+<head>
+</head>
+
+<style>
+ #myCanvas { border: 2px solid black; border-radius:8px; cursor:pointer; }
+</style>
+
+<body>
+<img hidden id="myImg" src="splat6.png" />
+<img hidden id="myBg" src="bg.jpg" />
+
+<canvas id="myCanvas" width="640" height="480" >canvas not supported :(</canvas>
+<p id="dinfo"> text </p>
+</body>
+
+<script>
+
+/////////////////////////////////////////////////////// 
+
+  var gt = 0;
+  var obj = { cx:0, cy:0, vx:3, vy:3 };
+  var cam = { cx:0, cy:0, cz:0 };
+  var rendw = 320;
+  var rendh = 240;
+  var tmap = {mw:0, mh:0, cw:32.0, ch:32.0, vecGrid:[]};
+  var mdown = 0;
+  var mousex = 0;
+  var mousey = 0;
+  var canvas = document.getElementById("myCanvas");
+  var wrat = { cx:0, cy:0, cz:0 };
+  var pobj = { cx:0, cy:0, cz:0, vx:0, vy:0, vz:0 };
+  
+/////////////////////////////////////////////////////// 
+  function handleEvent(e)
+  {
+    if (!e)  { var e = event;  } 
+    if (!e)  { return; }
+    
+    //ignore mid and right button 
+    if (e.pointerType == "mouse")
+    {
+      if (e.button == 1 || e.button == 2) { return; }            
+    }//endif
+     
+    if (e.type == "mousemove" ||   e.type == "pointermove" )
+    {  
+      let r = canvas.getBoundingClientRect();
+         mousex = Math.round((e.clientX-r.left)/(r.right-r.left)*canvas.width );
+         mousey = Math.round((e.clientY-r.top)/(r.bottom-r.top)*canvas.height );
+      return; 
+    }//endif   
+
+    if (e.type == "mouseup" ||  e.type == "pointerup" )
+    {    
+      mdown = 0;   
+      return; 
+    }//endif 
+    
+    if (e.type == "mousedown" ||  e.type == "pointerdown")
+    {
+      mdown = 1;
+      return; 
+    }//endif 
+  }//handleevent  
+/////////////////////////////////////////////////////// 
+
+  function initTmap(tm)
+  {
+    tm.mw = 128;
+    tm.mh = 128;
+    tm.cw = 16.0;
+    tm.ch = 16.0;
+    
+    let i, num;
+    num = tm.mw * tm.mh; 
+    tm.vecGrid = [];
+    for (i=0;i<num;i+=1)
+    {
+      tm.vecGrid[i] = 0.0;
+    }//nexti
+  
+  }//inittmap 
+  
+  function setTmap(tm, tx, tz, h)
+  {
+    tx = tx|0; tz = tz|0;
+    
+    if (tx<0||tx>=tm.mw||tz<0||tz>=tm.mh) {return;}
+    
+    tm.vecGrid[tx + (tz * tm.mw)] = h;
+  }//settmap 
+  
+  function drawTmap(ctx, tm, camx, camz)
+  {
+    let i, k;
+    let yt;
+    let tx, tz;
+    let ax, az;
+    let kx, kz;
+    let h0, h1;
+    
+    tx = (camx / tm.cw)|0;
+    tz = (camz / tm.ch)|0; 
+    tx -= 2;
+    tz -= 2;
+    
+   
+    for (i=0;i<40;i+=1)
+    {
+      kz = i + tz;
+      if (kz < 0) { continue; }
+      if (kz >= tm.mh) { break; }
+      yt = kz * tm.mw;
+      
+      az = kz * tm.ch;
+
+      for (k=0;k<40;k+=1)
+      {
+       kx = k + tx;
+       if (kx < 0) { continue; }
+       if (kx >= tm.mw) { break; }
+       
+       ax  = kx  * tm.cw; 
+       
+       h0 = tm.vecGrid[yt + kx];
+       
+       h1 = tm.vecGrid[yt + kx  + 1];
+       drawLine3(ctx, ax, h0, az,  ax+tm.cw, h1, az);
+
+       h1 = tm.vecGrid[yt + kx  + tm.mw];
+       drawLine3(ctx, ax, h0, az,  ax, h1, az+tm.ch);
+      }//nextk 
+    }//nexti 
+  
+  
+  }//drawtmap 
+  
+ 
+  function getHeight(tm, ax, ay)
+  { 
+    let h0, h1, h2, h3;
+    let tx, ty;
+    let yt;
+    let u, v;
+    tx = Math.floor(ax/tm.cw); if (tx < 0) { tx = 0; } if (tx >= tm.mw-2) { return 0.0; }
+    ty = Math.floor(ay/tm.ch); if (ty < 0) { ty = 0; } if (ty >= tm.mw-2) { return 0.0; } 
+    yt = ty*tm.mw;
+    h0 = tm.vecGrid[yt+tx];     
+    h1 = tm.vecGrid[yt+tx+1];
+    h2 = tm.vecGrid[yt+tx+tm.mw];  
+    h3 = tm.vecGrid[yt+tx+tm.mw+1];
+    u = (ax/tm.cw) - tx;  
+    v = (ay/tm.ch) - ty;
+    h0 = h0 + (h1-h0) * u;   
+    h2 = h2 + (h3-h2) * u;   
+    h3 = h0 + (h2-h0) * v;
+    return h3;
+  }//getheight 
+  
+  function getMag(ax,ay)
+        { return Math.sqrt(ax*ax+ay*ay); }
+
+    function addBump(tm, ax,ay, r, h)
+    { 
+     let kx, ky;
+     let h2, h3, d;
+     let k, i, t;
+     let tx, ty; 
+     let tw, th;
+      
+      tx = (ax-r)/tm.cw; ty=(ay-r)/tm.ch;
+      tw=(r/tm.cw)*2; th=(r/tm.ch)*2;
+      for(i=0;i<th;i+=1)  { for (k=0;k<tw;k+=1)  {
+        kx= (tx+k)*tm.cw; ky=(ty+i)*tm.ch;
+        d = getMag(kx-ax,ky-ay);
+        h3 = getHeight(tm, kx,ky);
+          t = (((r-d)/r));
+          if (t<0){t=0;} else if (t>1){t=1;}
+          h2 = t*h;
+        h2 = h3 + t*h;
+        //setHeight(tx+k,ty+i, h2);
+        setTmap(tm, tx+k, ty+i, h2);
+      }}
+    }//addbump  
+        
+        
+/////////////////////////////////////////////////////// 
+  function drawLine3(ctx, x0,y0,z0, x1,y1,z1)
+  {
+    let sx, sy;
+    x0 -= cam.cx;
+    y0 -= cam.cy;
+    z0 -= cam.cz;
+    
+    x1 -= cam.cx;
+    y1 -= cam.cy;
+    z1 -= cam.cz;
+    
+    sx = x0 - z0 + rendw;
+    sy = (x0 * 0.5) + (z0 * 0.5) - y0;
+
+    ctx.moveTo(sx, sy);
+    
+    sx = x1 - z1 + rendw;
+    sy = (x1 * 0.5) + (z1 * 0.5) - y1;
+    
+    ctx.lineTo(sx, sy);
+    
+  
+  }//drawline3 
+  
+  function drawBox(ctx, x0, y0, z0, x1, y1, z1)
+  {
+    drawLine3(ctx, x0, y0, z0,   x1, y0, z0);
+    drawLine3(ctx, x0, y1, z0,   x1, y1, z0);
+    drawLine3(ctx, x0, y0, z1,   x1, y0, z1);
+    drawLine3(ctx, x0, y1, z1,   x1, y1, z1);
+
+    drawLine3(ctx, x0, y0, z0,   x0, y1, z0);
+    drawLine3(ctx, x1, y0, z0,   x1, y1, z0);
+    drawLine3(ctx, x0, y0, z1,   x0, y1, z1);
+    drawLine3(ctx, x1, y0, z1,   x1, y1, z1);
+
+    drawLine3(ctx, x0, y0, z0,   x0, y0, z1);
+    drawLine3(ctx, x1, y0, z0,   x1, y0, z1);
+    drawLine3(ctx, x0, y1, z0,   x0, y1, z1);
+    drawLine3(ctx, x1, y1, z0,   x1, y1, z1);
+  }//drawbox     
+
+  function drawBox3(ctx, ax,ay,az,rx,ry,rz)
+  { drawBox(ctx, ax-rx,ay-ry,az-rz,ax+rx,ay+ry,az+rz); }
+
+  function drawBox2(ctx, ax,ay,az,  aw,ah,ad)
+  { drawBox(ctx, ax,ay,az, ax+aw,ay+ah,az+ad); }
+
+/////////////////////////////////////////////////////// 
+
+  function resetGame()
+  {
+    initTmap(tmap);
+    cam = { cx:0, cy:0, cz:0 };
+    
+    
+    
+    let i, k; 
+    for (i=0;i<32;i+=1)
+    {
+      for (k=0;k<32;k+=1)
+      {
+        //setTmap(tmap, k, i, Math.random()*32);
+      }
+    }
+     
+    for (i=0;i<32;i+=1)
+    {
+      addBump(tmap, Math.random()*1320,Math.random()*1320, 256, 32);
+    }
+    
+    for (i=0;i<64;i+=1)
+    {
+      addBump(tmap, Math.random()*1320,Math.random()*1320, 128, 64);
+    }
+  }//resetgame
+        
+  function mainLoop(rtime)
+    { 
+     
+      let ta; let ax, ay, az; let ms;
+      let kx, ky, kz; let u;  let h;
+       
+       
+      wrat.cz = (2.0 * mousey - (mousex - rendw)) * 0.5; 
+      wrat.cx = (mousex - rendw) + wrat.cz;
+      wrat.cx += cam.cx;
+      wrat.cz += cam.cz;
+      wrat.cy = 0;
+      
+      if (mdown > 0)
+      {
+        ta = Math.atan2(wrat.cz-pobj.cz, wrat.cx-pobj.cx);
+        ms = 0.5;
+        pobj.vx += Math.cos(ta) * ms;
+        pobj.vz += Math.sin(ta) * ms;
+      
+      }//endif
+
+      ms = 0.95;
+      pobj.vx *= ms; 
+      pobj.vz *= ms; 
+    
+      pobj.cx += pobj.vx;
+      pobj.cz += pobj.vz;
+      pobj.cy = getHeight(tmap, pobj.cx,  pobj.cz);
+      
+       cam.cx = pobj.cx - 240; //- pobj.cy;
+       cam.cz = pobj.cz - 240; // - pobj.cy;
+       //cam.cx+=0.01;
+
+      obj.cx += obj.vx;
+      obj.cy += obj.vy;
+      if (obj.vx > 0 && obj.cx+obj.vx >= 640) { obj.cx = 640; obj.vx *= -1; }
+      if (obj.vx < 0 && obj.cx+obj.vx <= 0) { obj.cx = 0; obj.vx *= -1; }
+      if (obj.vy > 0 && obj.cy+obj.vy >= 480) { obj.cy = 480; obj.vy *= -1; }
+      if (obj.vy < 0 && obj.cy+obj.vy <= 0) { obj.cy = 0; obj.vy *= -1; }
+    
+      gt += 1;     
+      document.getElementById("dinfo").innerHTML = "gt "+gt + " mx "+mousex+ " my "+mousey+" mdown " +mdown ;
+      
+        
+      let img = document.getElementById("myImg");
+      let bgimg = document.getElementById("myBg");
+      let canvas = document.getElementById("myCanvas");
+      let ctx = canvas.getContext("2d"); 
+      ctx.globalAlpha = 1.0;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.imageSmoothingQuality = "low";  
+      //ctx.drawImage(bgimg, 0, 0); 
+      //ctx.drawImage(img, obj.cx-64, obj.cy-64); 
+      ctx.fillStyle = "#555555";
+      ctx.fillRect(0,0, 640,480);
+      
+      ctx.beginPath();
+       //drawLine3(ctx, 0,0,0, 100,0,0);
+       //drawBox2(ctx, 0,0,0, 300,128,300);
+       //drawBox2(ctx, 0,0,0, 32,5,32);
+       
+      
+       
+       drawBox3(ctx, wrat.cx, wrat.cy, wrat.cz, 8,1,8);
+       
+       wrat.cy = pobj.cy;
+       drawBox3(ctx, wrat.cx, wrat.cy, wrat.cz, 8,1,8);
+      
+       h = getHeight(tmap, wrat.cx, wrat.cz);
+       drawBox3(ctx, wrat.cx, h, wrat.cz, 3,3,3);
+       
+
+        ms = 16.0; u = 0.314;
+       for (ta=0;ta<6.24;ta+=u)
+       {
+          ax = wrat.cx + Math.cos(ta) * ms;
+          az = wrat.cz + Math.sin(ta) * ms;
+          ay = getHeight(tmap, ax, az);
+          kx = wrat.cx + Math.cos(ta+u) * ms;
+          kz = wrat.cz + Math.sin(ta+u) * ms;
+          ky = getHeight(tmap, kx, kz);
+          drawLine3(ctx, ax,ay,az, kx,ky,kz); 
+       }//nextta 
+       
+       
+       drawBox3(ctx, pobj.cx, pobj.cy, pobj.cz, 12,24,12);
+       
+       if (mdown > 0)
+       {
+        drawBox3(ctx, wrat.cx, wrat.cy, wrat.cz, 8,8,8);       
+       }
+       
+       drawTmap(ctx, tmap, cam.cx, cam.cz);
+      ctx.stroke();
+      
+      requestAnimationFrame(mainLoop);
+    }//mainLoop
+/////////////////////////////////////////////////////// 
+    window.onload = function() 
+    { 
+      setTimeout(() => { 
+        document.addEventListener('pointermove', function(e){ handleEvent(e); } );   
+        document.addEventListener('pointerup',   function(e){ handleEvent(e); } );
+        canvas.addEventListener('pointerup',     function(e){ handleEvent(e); } );
+        canvas.addEventListener('pointerdown',   function(e){ handleEvent(e); } ); 
+
+      
+        resetGame();
+        mainLoop(0);
+
+       }, 500); //set timeout 
+    }//onload      
+/////////////////////////////////////////////////////// 
+
+</script>
+
+</html>
