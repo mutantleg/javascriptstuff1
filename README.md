@@ -1,2 +1,3 @@
 # javascriptstuff1
-javascript prototypes
+various javascript prototypes
+
